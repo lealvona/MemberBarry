@@ -1,7 +1,12 @@
 import datetime
+import os
+import shortuuid
 import sqlite3 
+import time
 import uuid
 
+import chromadb
+from chromadb.utils import embedding_functions
 import openai
 
 def dict_factory(cursor, row):
@@ -10,8 +15,11 @@ def dict_factory(cursor, row):
         d[col[0]] = row[idx]
     return d
 
+LONG_TERM_MEMORY_DELAY = 180  # 3 minutes
+
+
 class AIDatabase:
-    def __init__(self, session_id=None, db_filename=None):
+    def __init__(self, session_id=None, db_filename=None, unique_collection=False):
         """Initialize the AIDatabase class."""
         # If no session_id is provided, generate a random one
         if not session_id:
@@ -29,6 +37,26 @@ class AIDatabase:
         self.conn.row_factory = dict_factory
 
         self.check_tables()
+
+        # Begin VectorDB stuff
+        chroma_client = chromadb.PersistentClient(path="./vector_persistance")
+
+        openai_ef = embedding_functions.OpenAIEmbeddingFunction(
+            api_key=os.environ.get("OPENAI_API_KEY"),
+            model_name="text-embedding-ada-002"
+        )
+
+        # Allow the use of forever memory, or a unique collection
+        if unique_collection:
+            collection_name = session_id
+        else:
+            collection_name = "memberbarry_collection"
+
+        # Get or create the collection with OpenAI embeddings and cosine similarity
+        self.collection = chroma_client.get_or_create_collection(
+            name=collection_name, 
+            embedding_function=openai_ef,
+            metadata={"hnsw:space": "cosine"})
         
     def check_tables(self):
         """Check if the tables exist and create them if they don't."""
@@ -143,6 +171,12 @@ class AIDatabase:
             (timestamp, system_prompt, user_message, assistant_response, context_pass, session_id))
         self.conn.commit()
 
+        c.execute(
+            """SELECT last_insert_rowid() as last_id;"""
+        )
+
+        return c.fetchone()['last_id']
+
     def insert_summary(self, summary, summary_type, context_pass=None, session_id=None):
         """Insert a new summary."""
         if not session_id:
@@ -163,6 +197,13 @@ class AIDatabase:
             VALUES (?, ?, ?, ?, ?)""", 
             (timestamp, summary, summary_type, context_pass, session_id))
         self.conn.commit()
+
+        c.execute(
+            """SELECT last_insert_rowid() as last_id;"""
+        )
+
+        return c.fetchone()['last_id']
+
 
     def get_all_summaries_by_type(self, summary_type, session_id=None):
         """Return all summaries for a given session_id of a given summary_type 
@@ -287,84 +328,86 @@ class AIDatabase:
         # Return a list of summary text
         return [summary['summary'] for summary in c.fetchall()]
 
-    # TODO: This is not properly implemented yet.
-    def create_embedding_table(self):
-        """Create a table to store embeddings."""
-        c = self.conn.cursor()
-        c.execute("""CREATE TABLE IF NOT EXISTS embeddings (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp TEXT,
-            embedding TEXT,
-            metadata TEXT,
-            session_id TEXT
-        )""")
-        self.conn.commit()
-
-    # TODO: This is not properly implemented yet.
-    @classmethod
-    def create_openai_embedding(cls, text):
-        """Create an embedding using the OpenAI API."""
-        embedding = openai.Embedding.create(text)
-
-        return embedding
-
-    # TODO: This is not properly implemented yet.
-    def add_embedding(self, text, metadata=None):
+    # TODO: Is this the most effective method for storing our chats? Should we
+    # store the whole message object (i.e. user and assistant messages) as a 
+    # single item?
+    def add_embedding(self, user_message, assistant_response, convo_id, session_id=None):
         """Add an embedding to the database."""
-        c = self.conn.cursor()
+        if not session_id:
+            session_id = self.session_id
 
-        timestamp = datetime.datetime.now()
-
-        embedding = self.create_openai_embedding(text)
-
-        c.execute(
-            'INSERT INTO embeddings (timestamp, embedding, metadata, session_id) VALUES (?, ?, ?, ?)', (timestamp, embedding, metadata, self.session_id))
-        self.conn.commit()
+        self.collection.add(
+            documents=[user_message, assistant_response],
+            metadatas=[
+                {
+                    "role": "user", 
+                    'session_id': session_id, 
+                    'convo_id': convo_id,
+                    'timestamp': time.mktime(datetime.datetime.now().timetuple())
+                }, 
+                {
+                    "role": "assistant", 
+                    'session_id': session_id, 
+                    'convo_id': convo_id,
+                    'timestamp': time.mktime(datetime.datetime.now().timetuple())
+                }
+            ],
+            ids=[shortuuid.uuid(), shortuuid.uuid()]
+        )
     
-    # TODO: This is not properly implemented yet.
-    def get_similar_embeddings(self, embedding, measure="cosine_similarity"):
-        """Return the similarity of two embeddings using OpenAI Embeddings."""
-        # Get all the embeddings for the session_id
-        embeddings = self.get_all_embeddings()
+    def get_similar_convos(self, query):
+        """Get a list of similar responses."""
+        # Get similar past responses, but limit the results to those that were 
+        # not in the last short period of time.
+        results = self.collection.query(
+            query_texts=[query],
+            n_results=2,
+            where={
+                '$and': [
+                    {"role": "assistant"},
+                    {'timestamp': {
+                        "$lt": time.mktime(datetime.datetime.now().timetuple()) - LONG_TERM_MEMORY_DELAY
+                    }}
+                ]
+            }
+        )
 
-        # Create a list of tuples of the form (embedding, similarity)
-        similarity_list = []
-        for embedding in embeddings:
-            similarity = embedding.similarity(embedding, measure=measure)
-            similarity_list.append((embedding, similarity))
+        messages = []
+        for index, distance in enumerate(results['distances'][0]):
+            if distance < 0.2:
+                where_query = {
+                    '$and': [
+                        {'convo_id': results['metadatas'][0][index]['convo_id']},
+                        {'role': 'user'},
+                    ]
+                }
+                # Get the user message via correlated convo_id
+                user_messages = \
+                    self.collection.get(where=where_query)['documents']
+                
+                if user_messages:
+                    # Append the user message and the assistant response to the
+                    # messages list
+                    messages.append({
+                        'role': 'user', 
+                        'content': user_messages[0]
+                    })
+                    messages.append({
+                        'role': 'assistant', 
+                        'content': results['documents'][0][index]
+                    })
 
-        # Sort the list by similarity
-        similarity_list.sort(key=lambda x: x[1], reverse=True)
-
-        return similarity_list
-    
-    # TODO: This is not properly implemented yet.
-    def get_all_embeddings(self):
-        """Return all embeddings for a given session_id."""
-        c = self.conn.cursor()
-        c.execute(
-            'SELECT * FROM embeddings WHERE session_id=?', (self.session_id,))
-        return c.fetchall()
+        return messages
 
     # TODO: This is not properly implemented yet.
     def update_embedding(self, embedding, metadata=None):
         """Update an embedding in the database."""
-        c = self.conn.cursor()
-
-        timestamp = datetime.datetime.now()
-
-        c.execute("""UPDATE embeddings 
-            SET timestamp=?, embedding=?, metadata=? WHERE session_id=?
-        """, (timestamp, embedding, metadata, self.session_id))
-        self.conn.commit()
+        pass
     
     # TODO: This is not properly implemented yet.
     def delete_embedding(self, metadata):
         """Delete an embedding from the database."""
-        c = self.conn.cursor()
-
-        c.execute('DELETE FROM embeddings WHERE metadata=?', (metadata))
-        self.conn.commit()
+        pass
 
     @classmethod
     def export_session_rows_to_new_db(cls, session_id=None, db_filename=None):
