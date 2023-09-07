@@ -175,6 +175,14 @@ class MemberBarry:
             # Add the system prompt at the front
             messages.append({"role": "system", "content": system_prompt})
 
+        long_term_memory = self.db.get_similar_convos(text)
+
+        if long_term_memory:
+            # Add the long term memory to the messages
+            for memory in long_term_memory:
+                if memory not in self.running_context:
+                    messages.append(memory)
+
         # Check if the full context should be used
         if use_full_context:
             full_context = []
@@ -223,12 +231,17 @@ class MemberBarry:
         self.add_to_running_context(user=text, assistant=response)
 
         # Insert the conversation into the db
-        self.db.insert_convo(
+        insert_id = self.db.insert_convo(
             system_prompt if system_prompt else self.system_prompt,
             text,
             response,
             self.running_context_pass)
-
+        
+        self.db.add_embedding(
+            user_message=text, 
+            assistant_response=response, 
+            convo_id=insert_id)
+            
         return response
 
     @backoff.on_exception(backoff.expo, openai.error.RateLimitError)
@@ -361,7 +374,7 @@ class MemberBarry:
             summary,
             summary_type="summary",
             context_pass=self.running_context_pass)
-        
+
         # Increment the running context pass
         self.running_context_pass += 1
 
