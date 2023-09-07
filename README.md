@@ -3,12 +3,13 @@
 ![Just Barry](docs/img/barry.png)
 
 ## Dependencies
-- `openai`
-- `openai[embeddings]`  # Soon
-- `tiktoken`
 - `backoff`
+- `chromadb`
+- `openai`
+- `openai[embeddings]`
 - `python-dotenv`
-
+- `tiktoken`
+- `shortuuid`
 ---
 
 ## MemberBarry
