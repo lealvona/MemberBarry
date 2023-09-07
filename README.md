@@ -23,7 +23,7 @@
 
 ### Overview
 
-`AIDatabase` is a Python class that handles SQLite database operations for storing and retrieving conversation sessions and summaries. It is designed to support the `MemberBarry` class by providing database functionalities such as creating tables, inserting data, and fetching records.
+`AIDatabase` is a Python class that handles SQLite database operations for storing and retrieving conversation sessions and summaries. It is designed to support the `MemberBarry` class by providing database functionalities such as creating tables, inserting data, and fetching records. There are two simultaneous data stores in this module. A standard SQLLite DB to store a plain text representation of ALL interactions which is used for immediate context and running summary, and a chroma vector db running on a persistant sqlite backend which provides similarity search and long-term memory.
 
 ---
 
