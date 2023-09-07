@@ -2,12 +2,6 @@
 
 ![Just Barry](docs/img/barry.png)
 
-## Overview
-
-`MemberBarry` is a Python class that serves as a wrapper for the OpenAI API. It is designed to manage conversations with the API while retaining the context of each session. It provides methods for tasks such as audio transcription, text summarization, and conversation handling.
-
----
-
 ## Dependencies
 - `openai`
 - `openai[embeddings]`  # Soon
