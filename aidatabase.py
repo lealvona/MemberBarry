@@ -355,21 +355,29 @@ class AIDatabase:
             ids=[shortuuid.uuid(), shortuuid.uuid()]
         )
     
-    def get_similar_convos(self, query):
+    def get_similar_convos(self, query, session_id=None):
         """Get a list of similar responses."""
-        # Get similar past responses, but limit the results to those that were 
-        # not in the last short period of time.
+        # Query for similar past responses, but limit the results to those that 
+        # were not in the last short period of time.
+        where_query = {
+            '$and': [
+                {"role": "assistant"},
+                {'timestamp': {
+                    "$lt": time.mktime(
+                        datetime.datetime.now().timetuple()) - LONG_TERM_MEMORY_DELAY
+                }}
+            ]
+        }
+
+        # If a session_id is provided, add it to the query
+        if session_id:
+            where_query['$and'].append({'session_id': session_id})
+        
+        # Use the query to get the most similar responses
         results = self.collection.query(
             query_texts=[query],
             n_results=2,
-            where={
-                '$and': [
-                    {"role": "assistant"},
-                    {'timestamp': {
-                        "$lt": time.mktime(datetime.datetime.now().timetuple()) - LONG_TERM_MEMORY_DELAY
-                    }}
-                ]
-            }
+            where=where_query
         )
 
         messages = []
