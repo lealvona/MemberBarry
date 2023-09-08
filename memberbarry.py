@@ -45,7 +45,7 @@ class MemberBarry:
         # System prompt
         if not system_prompt:
             self.system_prompt = DEFAULT_SYSTEM_PROMPT
-        else:  # TODO: Add a warning if a session_id is provided that the session system prompt will be used.
+        else:  # TODO: Add a warning if a session_id is provided, then that session's system prompt will be used.
             self.system_prompt = system_prompt
 
         # Local context
@@ -437,7 +437,9 @@ class MemberBarry:
 # Run an example of the OpenAI_API_Wrapper class
 if __name__ == "__main__":
 
-    system_prompt = "You are a helpful assistant."
+    # TODO: Get args from CLI and pass params to constructor
+    # system_prompt = "You are a helpful assistant."
+    
     # Create an instance of the OpenAI_API_Wrapper class
     api = MemberBarry()  # session_id='')
     print(f'This chat session ID is: {api.get_session_id()}')
