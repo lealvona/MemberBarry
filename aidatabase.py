@@ -354,7 +354,7 @@ class AIDatabase:
 
         self.collection.add(
             documents=[user_message, assistant_response],
-            metadatas=[
+            metadatas=[  # yes, metadata with an 's'
                 {
                     "role": "user",
                     'session_id': session_id,
@@ -371,6 +371,14 @@ class AIDatabase:
                 }
             ],
             ids=[shortuuid.uuid(), shortuuid.uuid()]
+        )
+
+    def add_document(self, document_data, metadata, id):
+        """Add a document to the database."""
+        self.collection.add(
+            documents=[document_data],
+            metadatas=[metadata],
+            ids=[id]
         )
 
     def get_similar_convos(self, query, session_id=None):
@@ -405,7 +413,7 @@ class AIDatabase:
                 where_query = {
                     '$and': [
                         {'convo_id':
-                            results['metadatas'][0][index]['convo_id']},
+                            results['metadatas'][0][index]['convo_id']},  # yes, metadata with an 's'  # noqa
                         {'role': 'user'},
                     ]
                 }
@@ -436,6 +444,13 @@ class AIDatabase:
     def delete_embedding(self, metadata):
         """Delete an embedding from the database."""
         pass
+
+    def load_document(self, document_data, metadata, id):
+        """Load a document from the database."""
+        # Tokenize the document data
+        
+        # Write the document data to the database
+        
 
     @classmethod
     def export_session_rows_to_new_db(cls, session_id=None, db_filename=None):
