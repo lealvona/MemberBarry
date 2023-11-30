@@ -446,6 +446,10 @@ class MemberBarry:
         """Return the session_id."""
         return self.db.get_session_id()
 
+    def load_file_to_db(self, filename):
+        """Load a file into the database."""
+        self.db.load_file(filename)
+
 
 # Run an example of the OpenAI_API_Wrapper class
 if __name__ == "__main__":
