@@ -252,7 +252,7 @@ class MemberBarry:
 
         return response
 
-    @backoff.on_exception(backoff.expo, openai.error.RateLimitError)
+    @backoff.on_exception(backoff.expo, openai.RateLimitError)
     def _raw_send_message(self, messages):
         """Send a message to the OpenAI API and return the response.
 
