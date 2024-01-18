@@ -34,9 +34,11 @@ from system_prompt import SYSTEM_PROMPT
 # Load local environment variables
 dotenv.load_dotenv()
 
-# Constants and Keys for OpenAI and Buffer size
-openai.api_key = os.environ.get('OPENAI_API_KEY')
-openai.organization = os.environ.get('OPENAI_ORG_ID')
+# OpenAI client
+client = openai.OpenAI(
+    api_key=os.environ.get('OPENAI_API_KEY'),
+    organization=os.environ.get('OPENAI_ORG_ID')
+)
 
 
 class MemberBarry:
@@ -82,7 +84,7 @@ class MemberBarry:
         self.max_tokens = max_tokens if max_tokens else OPENAI_MAX_TOKENS
 
         # Tokenizer ~ 100 tokens ~ 75 words | 1 token ~ 4 chars
-        self.tokenizer = tiktoken.encoding_for_model(OPENAI_MODEL)
+        self.tokenizer = tiktoken.get_encoding(OPENAI_MODEL_TOKENIZER)
 
         # Token count
         self.tokens_used = SimpleNamespace(prompt=0, completion=0, total=0)
@@ -124,7 +126,7 @@ class MemberBarry:
 
         with open(filename, 'rb') as file:
             # Transcribe audio to text using OpenAI
-            transcript = openai.Audio.transcribe(
+            transcript = client.audio.transcribe(
                 self.STT_ENGINE,
                 file=file
             )
@@ -269,7 +271,7 @@ class MemberBarry:
         """
         try:
             # Summarize transcribed text using the OpenAI API
-            response = openai.ChatCompletion.create(
+            response = client.chat.completions.create(
                 model=self.openai_model,
                 messages=messages,
                 temperature=self.temp,
