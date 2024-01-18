@@ -10,4 +10,6 @@ OPENAI_STT_ENGINE = os.environ.get('OPENAI_STT_ENGINE', 'whisper-1')
 OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-3.5-turbo')  # or "gpt-4" if ya got it  # noqa
 
 # SUMMARY_TOKEN_LIMIT = os.environ.get('SUMMARY_TOKEN_LIMIT', 200)
-CONTEXT_TOKEN_LIMIT = os.environ.get('CONTEXT_TOKEN_LIMIT', 500)
+CONTEXT_TOKEN_LIMIT = int(os.environ.get('CONTEXT_TOKEN_LIMIT', 500))
+
+OPENAI_MODEL_TOKENIZER = os.environ.get('OPENAI_MODEL_TOKENIZER', 'cl100k_base')  # noqa
